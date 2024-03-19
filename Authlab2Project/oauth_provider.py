@@ -2,18 +2,14 @@ import sqlite3
 import flask
 import secrets
 
-import requests
 import settings
 
-import urllib3
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 app = flask.Flask(__name__)
-DATABASE = 'oauth_provider.db'
 
 def create_tables():
-    connection = sqlite3.connect(DATABASE)
+    connection = sqlite3.connect(settings.provider_database)
     cursor = connection.cursor()
 
     cursor.execute('''
@@ -54,7 +50,7 @@ def create_tables():
     print("Database and tables created.")
 
 def get_conn():
-    conn = sqlite3.connect(DATABASE)
+    conn = sqlite3.connect(settings.provider_database)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -117,11 +113,11 @@ def token():
     cursor = conn.cursor()
 
 
-    cursor.execute('SELECT * FROM clients WHERE client_id = ?', (client_id,))
+    cursor.execute('SELECT * FROM clients WHERE client_id = ?;', (client_id,))
     client = cursor.fetchone()
 
     if client and client['client_secret'] == client_secret:
-        cursor.execute('SELECT * FROM authorizations WHERE authorization_code = ?', (auth_code,))
+        cursor.execute('SELECT * FROM authorizations WHERE authorization_code = ?;', (auth_code,))
         auth = cursor.fetchone()
 
         cursor.execute('SELECT * FROM authorizations')
@@ -129,7 +125,7 @@ def token():
         if auth:
             tok = secrets.token_hex(16)
             cursor.execute('INSERT INTO tokens (access_token, username) VALUES (?,?);', (tok, auth['username']))
-            cursor.execute('DELETE FROM authorizations WHERE authorization_code = ?', (auth_code,))
+            cursor.execute('DELETE FROM authorizations WHERE authorization_code = ?;', (auth_code,))
 
             cursor.close()
             conn.commit()
@@ -153,7 +149,7 @@ def validate():
 
     conn = get_conn()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM tokens WHERE (access_token = ?) AND (username = ?)', (tok, username))
+    cursor.execute('SELECT * FROM tokens WHERE (access_token = ?) AND (username = ?);', (tok, username))
     if len(cursor.fetchall()) >= 1:
         print(f'Validated token {tok}, {username}')
         return 'Success', 200

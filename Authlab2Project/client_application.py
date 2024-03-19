@@ -1,15 +1,11 @@
 import base64
 import hashlib
 import json
-
 import flask
 import requests
 import settings
 
 import key_management
-
-import urllib3
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 app = flask.Flask(__name__)
 
@@ -38,12 +34,12 @@ def login():
         print('failed to parse json')
         return None
 
-    requests.post(
+    resp = requests.post(
         f'http://{settings.app_server}/validate_token',
         json=resp_json
     )
 
-    return flask.jsonify(resp_json)
+    return flask.jsonify(resp.json())
 
 if __name__ == '__main__':
     app.run(port=settings.client_application.split(':')[1])

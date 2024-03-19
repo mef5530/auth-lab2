@@ -7,14 +7,16 @@ from cryptography.hazmat.backends import default_backend
 
 # RUNNING THIS SCRIPT WILL ROTATE THE PRIVATE KEY!!!
 # DONT DO IT!!
+import settings
+
 
 def write_key():
     key = Fernet.generate_key()
-    with open('key.key', 'wb') as key_f:
+    with open(settings.auth_app_shared_key, 'wb') as key_f:
         key_f.write(key)
 
 def load_key():
-    return open('key.key', 'rb').read()
+    return open(settings.auth_app_shared_key, 'rb').read()
 
 def aes256_cbc_encrypt(msg: bytes, key: bytes) -> bytes:
     iv = os.urandom(16)
