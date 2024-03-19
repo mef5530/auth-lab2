@@ -13,6 +13,8 @@
 # Example Usage
 1. Using the python console
    > import requests #imports the requests lib
+   > 
    > cred = {'username': 'alice', 'password': 'password1'} #creates a dict with a user
+   > 
    > requests.post('http://127.0.0.1:10001/login', data=cred).text #sends the creds to the client application
 2. Watch the response and look at the powershell windows
