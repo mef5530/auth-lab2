@@ -1,12 +1,22 @@
 import sqlite3
 import flask
 import secrets
+import logging
+from functools import wraps
 
 import settings
 
-
-
 app = flask.Flask(__name__)
+
+logging.basicConfig(level=logging.INFO)
+
+def log_post_data(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if flask.request.method == 'POST':
+            app.logger.info('POST request data: %s', flask.request.get_data(as_text=True))
+        return f(*args, **kwargs)
+    return decorated_function
 
 def create_tables():
     connection = sqlite3.connect(settings.provider_database)
@@ -55,6 +65,7 @@ def get_conn():
     return conn
 
 @app.route('/register', methods=['POST'])
+@log_post_data
 def register():
     client_id = secrets.token_hex(8)
     client_secret = secrets.token_hex(16)
@@ -73,7 +84,9 @@ def register():
         'client_secret': client_secret
     })
 
+
 @app.route('/authorize', methods=['POST'])
+@log_post_data
 def authorize():
     username = flask.request.form['username']
     password = flask.request.form['password']
@@ -94,16 +107,21 @@ def authorize():
         print(f'Authorized {auth_code}, {username}, {password}')
 
         return flask.jsonify({
-            'auth_token': auth_code
+            'status': 'success',
+            'auth_code': auth_code
         })
     else:
         cursor.close()
         conn.commit()
         conn.close()
 
-        return "Auth Failed", 401
+        return flask.jsonify({
+            'status': 'error',
+            'message': 'auth code generation failed'
+        })
 
 @app.route('/token', methods=['POST'])
+@log_post_data
 def token():
     auth_code = flask.request.form.get('auth_code')
     client_id = flask.request.form.get('client_id')
@@ -134,15 +152,21 @@ def token():
             print(f'Created token {tok}, {auth_code}, {client_id}, {client_secret}')
 
             return flask.jsonify({
+                'status': 'success',
                 'token': tok
             })
         else:
             cursor.close()
             conn.commit()
             conn.close()
-            return 'Requst error', 401
+
+            return flask.jsonify({
+                'status': 'error',
+                'message': 'failed to create token'
+            })
 
 @app.route('/validate', methods=['POST'])
+@log_post_data
 def validate():
     tok = flask.request.form.get('token')
     username = flask.request.form.get('username')
@@ -152,9 +176,15 @@ def validate():
     cursor.execute('SELECT * FROM tokens WHERE (access_token = ?) AND (username = ?);', (tok, username))
     if len(cursor.fetchall()) >= 1:
         print(f'Validated token {tok}, {username}')
-        return 'Success', 200
+        return flask.jsonify({
+            'status': 'success',
+            'message': 'validation was successful'
+        })
     else:
-        return 'Invalid', 401
+        return flask.jsonify({
+            'status': 'error',
+            'message': 'token is not valid'
+        })
 
 if __name__ == '__main__':
     create_tables()

@@ -4,12 +4,25 @@ import json
 import flask
 import requests
 import settings
+import logging
+from functools import wraps
 
 import key_management
 
 app = flask.Flask(__name__)
 
+logging.basicConfig(level=logging.INFO)
+
+def log_post_data(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if flask.request.method == 'POST':
+            app.logger.info('POST request data: %s', flask.request.get_data(as_text=True))
+        return f(*args, **kwargs)
+    return decorated_function
+
 @app.route('/login', methods=['POST'])
+@log_post_data
 def login():
     cred = {
         'username': flask.request.form['username'],
@@ -22,21 +35,23 @@ def login():
         verify=settings.auth_server_cert
     )
 
+    resp_json_enc = resp.json()
+
+    if resp_json_enc['auth'] == 'fail':
+        return flask.jsonify({
+            'status': 'error',
+            'message': resp_json_enc['message']
+        })
+
     password_hash_b = hashlib.sha256(flask.request.form['password'].encode()).digest()
-    resp_decrypt_b = key_management.aes256_cbc_decrypt(base64.b64decode(resp.text), password_hash_b)
-
-    try:
-        resp_json = json.loads(resp_decrypt_b)
-        resp_json['username'] = flask.request.form['username']
-
-        print(f'Decrypted {resp_decrypt_b} using password hash')
-    except json.JSONDecodeError:
-        print('failed to parse json')
-        return None
+    token_b = key_management.aes256_cbc_decrypt(base64.b64decode(resp_json_enc['token'].encode()), password_hash_b)
 
     resp = requests.post(
         f'http://{settings.app_server}/validate_token',
-        json=resp_json
+        json={
+            'token': token_b.decode(),
+            'username': flask.request.form['username']
+        }
     )
 
     return flask.jsonify(resp.json())
